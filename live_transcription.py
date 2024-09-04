@@ -35,6 +35,21 @@ class MyEventHandler(TranscriptResultStreamHandler):
                     print("Transcription:" + transcript +"\n")
 
 # asynchronous generator for microphone stream
+
+def get_default_input_device():
+    devices = sd.query_devices()
+    input_devices = [i for i, d in enumerate(devices) if d['max_input_channels'] > 0]
+    
+    if not input_devices:
+        raise sd.PortAudioError("No input devices available")
+    
+    # Select the first input device if default fails
+    default_device = sd.default.device[0]
+    if default_device == -1:
+        print(f"No default input device found, using device ID: {input_devices[0]}")
+        return input_devices[0]
+    return default_device
+
 async def mic_stream():
     loop = asyncio.get_event_loop()
     input_queue = asyncio.Queue()
@@ -43,9 +58,11 @@ async def mic_stream():
         loop.call_soon_threadsafe(input_queue.put_nowait, (bytes(indata), status))
 
     try:
-        # Use None for the device to select the default input microphone
+        # Use the determined input device
+        device_id = get_default_input_device()
+        
         stream = sd.RawInputStream(
-            device=None,  # None uses the system's default input device
+            device=device_id,
             channels=1,
             samplerate=48000,
             callback=callback,
@@ -59,6 +76,7 @@ async def mic_stream():
     except sd.PortAudioError as e:
         print(f"Error initializing audio stream: {e}")
         raise
+
 
 
  # This connects the raw audio chunks generator coming from the microphone
