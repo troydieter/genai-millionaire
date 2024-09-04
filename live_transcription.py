@@ -36,31 +36,30 @@ class MyEventHandler(TranscriptResultStreamHandler):
 
 # asynchronous generator for microphone stream
 async def mic_stream():
-    # this function wraps the raw input stream from the microphone forwarding
-    # the blocks to an asyncio.Queue.
     loop = asyncio.get_event_loop()
     input_queue = asyncio.Queue()
 
-    # Callback function for audio input
     def callback(indata, frame_count, time_info, status):
         loop.call_soon_threadsafe(input_queue.put_nowait, (bytes(indata), status))
 
-    # Be sure to use the correct parameters for the audio stream that matches
-    # the audio formats described for the source language you'll be using:
-    # https://docs.aws.amazon.com/transcribe/latest/dg/streaming.html
-    stream = sd.RawInputStream(
-        channels=1,
-        samplerate=48000,
-        callback=callback,
-        blocksize=1024 * 2,
-        dtype="int16",
-    )
-    # initiate the audio stream and asynchronously yield the audio chunks
-    # as they become available.
-    with stream:
-        while True:
-            indata, status = await input_queue.get()
-            yield indata, status
+    try:
+        # Use None for the device to select the default input microphone
+        stream = sd.RawInputStream(
+            device=None,  # None uses the system's default input device
+            channels=1,
+            samplerate=48000,
+            callback=callback,
+            blocksize=1024 * 2,
+            dtype="int16",
+        )
+        with stream:
+            while True:
+                indata, status = await input_queue.get()
+                yield indata, status
+    except sd.PortAudioError as e:
+        print(f"Error initializing audio stream: {e}")
+        raise
+
 
  # This connects the raw audio chunks generator coming from the microphone
  # and passes them along to the transcription stream.
