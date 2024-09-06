@@ -37,10 +37,10 @@ transcript = ""
 response_placeholder = st.empty()
 
 # WebRTC settings
-WEBRTC_CLIENT_SETTINGS = ClientSettings(
-    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    media_stream_constraints={"audio": True, "video": False},
-)
+rtc_configuration = {
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+}
+media_stream_constraints = {"audio": True, "video": False}
 
 # Function to play audio from Polly response
 def play_audio(audio_data):
