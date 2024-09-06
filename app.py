@@ -46,22 +46,22 @@ media_stream_constraints = {"audio": True, "video": False}
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
 
-# Capture audio from WebRTC and transcribe it
+# Function to handle audio transcription
 def audio_transcription():
     global transcript
     webrtc_ctx = webrtc_streamer(
         key="transcription",
-        mode=WebRtcMode.SENDRECV,
+        mode=WebRtcMode.SENDRECV,  # Ensure the mode is set for audio
         rtc_configuration=rtc_configuration,
         media_stream_constraints=media_stream_constraints,
-        audio_receiver_size=1024,
+        audio_receiver_size=1024,  # Buffer size for audio reception
     )
     
     if webrtc_ctx.audio_receiver:
         audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
         if audio_frames:
             with st.spinner(':studio_microphone: Transcribing audio...'):
-                transcript = main("en-US", audio_frames)
+                transcript = main("en-US", audio_frames)  # Use your transcription logic
             return "Transcription ended!"
     return "No audio input detected."
 
