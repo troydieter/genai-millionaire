@@ -49,14 +49,22 @@ def play_audio(audio_data):
 # Function to handle audio transcription
 def audio_transcription():
     global transcript
-    webrtc_ctx = webrtc_streamer(
-        key="transcription",
-        mode=WebRtcMode.SENDONLY,  # Ensure the mode is set for audio
-        rtc_configuration=rtc_configuration,
-        media_stream_constraints=media_stream_constraints,
-        audio_receiver_size=1024,  # Buffer size for audio reception
-    )
     
+    # Check if the WebRTC context is in session state, if not, initialize it
+    if "webrtc_ctx" not in st.session_state:
+        st.session_state.webrtc_ctx = None
+
+    if st.session_state.webrtc_ctx is None:
+        st.session_state.webrtc_ctx = webrtc_streamer(
+            key="transcription",
+            mode=WebRtcMode.SENDONLY,  # Ensure the mode is set for audio
+            rtc_configuration=rtc_configuration,
+            media_stream_constraints=media_stream_constraints,
+            audio_receiver_size=1024,  # Buffer size for audio reception
+        )
+    
+    webrtc_ctx = st.session_state.webrtc_ctx
+
     if webrtc_ctx.audio_receiver:
         audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
         if audio_frames:
