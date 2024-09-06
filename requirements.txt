@@ -121,3 +121,6 @@ websockets==11.0.3
 wheel==0.38.4
 yarl==1.9.2
 zipp==3.17.0
+streamlit-webrtc
+av 
+aiortc

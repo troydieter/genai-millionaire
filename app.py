@@ -6,6 +6,9 @@ from live_transcription import main
 from dotenv import load_dotenv
 import boto3
 import botocore.config
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import av
+import numpy as np
 
 # loading in environment variables
 load_dotenv()
@@ -26,6 +29,7 @@ st.title(f""":money_with_wings: **Who Wants to Be an AI Millionaire?** :moneybag
 if "messages" not in st.session_state:
     st.session_state.messages = []
     open("chat_history.txt", "w").close()
+
 # displaying chat messages stored in session state
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -38,6 +42,21 @@ response_placeholder = st.empty()
 # Function to play audio from Polly response
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
+
+# Audio recording function
+def audio_recorder_callback(frame):
+    return frame
+
+# WebRTC configuration
+webrtc_ctx = webrtc_streamer(
+    key="audio-recorder",
+    mode=WebRtcMode.SENDONLY,
+    audio_receiver_size=1024,
+    rtc_configuration=RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    ),
+    media_stream_constraints={"audio": True, "video": False},
+)
 
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
@@ -80,6 +99,26 @@ with st.sidebar:
         result_container = result_area.container()
         result_container.write(st.session_state.result)
         result_container.button('Ask a New Question', on_click=clear)
+
+# If audio data is available from WebRTC, process it
+if webrtc_ctx.audio_receiver:
+    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+    if audio_frames:
+        sound = pydub.AudioSegment.empty()
+        for audio_frame in audio_frames:
+            sound += pydub.AudioSegment(
+                data=audio_frame.to_ndarray().tobytes(),
+                sample_width=audio_frame.format.bytes,
+                frame_rate=audio_frame.sample_rate,
+                channels=len(audio_frame.layout.channels),
+            )
+        # Save the audio data
+        sound.export("recorded_audio.wav", format="wav")
+        st.audio("recorded_audio.wav")
+
+        # Process the audio (e.g., transcribe it)
+        with open("recorded_audio.wav", "rb") as audio_file:
+            transcript = transcribe.transcribe_audio(audio_file)
 
 # If transcript is available, display it as a question
 if transcript:
