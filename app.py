@@ -39,6 +39,10 @@ rtc_configuration = {
 }
 media_stream_constraints = {"audio": True, "video": False}
 
+# creating empty transcript string for streamed input to be added to
+transcript = ""
+response_placeholder = st.empty()
+
 # Function to handle audio transcription
 def audio_transcription():
     global transcript
