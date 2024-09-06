@@ -9,6 +9,7 @@ import botocore.config
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 import numpy as np
+import pydub
 
 # loading in environment variables
 load_dotenv()

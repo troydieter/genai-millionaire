@@ -124,3 +124,4 @@ zipp==3.17.0
 streamlit-webrtc
 av 
 aiortc
+pydub
