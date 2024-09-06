@@ -6,10 +6,11 @@ from live_transcription import main
 from dotenv import load_dotenv
 import boto3
 import botocore.config
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import av
-import numpy as np
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 import pydub
+import numpy as np
+import queue
+import time
 
 # loading in environment variables
 load_dotenv()
@@ -20,8 +21,6 @@ boto3.setup_default_session(profile_name=os.getenv('profile_name'))
 config = botocore.config.Config(connect_timeout=120, read_timeout=120)
 # instantiating the Polly client
 polly = boto3.client('polly', region_name='us-east-1')
-# instantiating the Transcribe client
-transcribe = boto3.client('transcribe', region_name='us-east-1')
 
 # Title displayed on the Streamlit web app
 st.title(f""":money_with_wings: **Who Wants to Be an AI Millionaire?** :moneybag:""")
@@ -30,44 +29,41 @@ st.title(f""":money_with_wings: **Who Wants to Be an AI Millionaire?** :moneybag
 if "messages" not in st.session_state:
     st.session_state.messages = []
     open("chat_history.txt", "w").close()
+    
+if "webrtc_ctx" not in st.session_state:
+    st.session_state.webrtc_ctx = None
 
-# displaying chat messages stored in session state
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# WebRTC settings
+rtc_configuration = {
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+}
+media_stream_constraints = {"audio": True, "video": False}
 
-# creating empty transcript string for streamed input to be added to
-transcript = ""
-response_placeholder = st.empty()
+# Function to handle audio transcription
+def audio_transcription():
+    global transcript
+    webrtc_ctx = st.session_state.webrtc_ctx
 
-# Function to play audio from Polly response
+    if webrtc_ctx and webrtc_ctx.state.playing:
+        if webrtc_ctx.audio_receiver:
+            audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+            if audio_frames:
+                with st.spinner(':studio_microphone: Transcribing audio...'):
+                    transcript = main("en-US", audio_frames)  # Use your transcription logic
+                return "Transcription ended!"
+            else:
+                return "No audio input detected."
+        else:
+            return "No audio receiver found."
+    else:
+        return "WebRTC is not playing."
+
+# Function to play Polly audio
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
 
-# Audio recording function
-def audio_recorder_callback(frame):
-    return frame
-
-# WebRTC configuration
-webrtc_ctx = webrtc_streamer(
-    key="audio-recorder",
-    mode=WebRtcMode.SENDONLY,
-    audio_receiver_size=1024,
-    rtc_configuration=RTCConfiguration(
-        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-    ),
-    media_stream_constraints={"audio": True, "video": False},
-)
-
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
-    # Start the "Call a Friend" transcription job
-    def processing():
-        with st.spinner(':telephone_receiver: Calling a friend...'):
-            global transcript
-            transcript = main("en-US")
-        return "Transcription ended!"
-    
     # Check if the lifeline is active
     if 'run' not in st.session_state:
         st.session_state.run = False
@@ -75,14 +71,22 @@ with st.sidebar:
 
     # Activate the lifeline
     def run():
+        if st.session_state.webrtc_ctx is None:
+            st.session_state.webrtc_ctx = webrtc_streamer(
+                key="transcription",
+                mode=WebRtcMode.SENDONLY,  # Ensure the mode is set for audio
+                rtc_configuration=rtc_configuration,
+                media_stream_constraints=media_stream_constraints,
+                audio_receiver_size=1024,  # Buffer size for audio reception
+            )
         st.session_state.run = True
-    
+
     # Reset the game
     def clear():
         global response_placeholder
         response_placeholder = st.empty()
         st.session_state.result = None
-    
+
     # Instructions for asking questions (using lifelines)
     upper = st.container()
     upper.write(':studio_microphone: Click to ask a question! After 3 seconds of silence, your AI friend will respond.')
@@ -91,8 +95,7 @@ with st.sidebar:
 
     # Start transcription when the button is clicked
     if st.session_state.run:
-        result_area.empty()
-        st.session_state.result = processing()
+        st.session_state.result = audio_transcription()
         st.session_state.run = False
 
     # Show a reset button when transcription ends
@@ -100,26 +103,6 @@ with st.sidebar:
         result_container = result_area.container()
         result_container.write(st.session_state.result)
         result_container.button('Ask a New Question', on_click=clear)
-
-# If audio data is available from WebRTC, process it
-if webrtc_ctx.audio_receiver:
-    audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
-    if audio_frames:
-        sound = pydub.AudioSegment.empty()
-        for audio_frame in audio_frames:
-            sound += pydub.AudioSegment(
-                data=audio_frame.to_ndarray().tobytes(),
-                sample_width=audio_frame.format.bytes,
-                frame_rate=audio_frame.sample_rate,
-                channels=len(audio_frame.layout.channels),
-            )
-        # Save the audio data
-        sound.export("recorded_audio.wav", format="wav")
-        st.audio("recorded_audio.wav")
-
-        # Process the audio (e.g., transcribe it)
-        with open("recorded_audio.wav", "rb") as audio_file:
-            transcript = transcribe.transcribe_audio(audio_file)
 
 # If transcript is available, display it as a question
 if transcript:
