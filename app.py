@@ -39,6 +39,10 @@ rtc_configuration = {
 }
 media_stream_constraints = {"audio": True, "video": False}
 
+# creating empty transcript string for streamed input to be added to
+transcript = ""
+response_placeholder = st.empty()
+
 # Function to handle audio transcription
 def audio_transcription():
     global transcript
@@ -111,13 +115,13 @@ if transcript:
         st.balloons()
     st.session_state.messages.append({"role": "user", "content": transcript})
 
-    # Answer from the AI (the Millionaire Expert)
+# Answer from the AI (the Millionaire Expert)
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         with st.spinner("Thinking..."):
             answer = prompt_finder(transcript)
             message_placeholder.markdown(f":moneybag: **AI Expert's Answer:** {answer}")
-    
+
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
     # Polly speaks the answer
