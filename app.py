@@ -81,7 +81,7 @@ with st.sidebar:
                 audio_data.append(audio_buffer.get())
             # Process audio_data to get transcript
             # This is where you'd integrate with a speech-to-text service
-            transcript = "This is a placeholder for the transcribed audio from WebRTC"
+            transcript = "Who is the president of the united states?"
         return "Transcription ended!"
     
     # Check if the lifeline is active
