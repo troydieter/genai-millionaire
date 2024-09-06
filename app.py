@@ -10,22 +10,27 @@ import av
 import queue
 import threading
 import io
-import asyncio
-import aiohttp
-import json
-import base64
+import wave
+import time
+import requests
 
 # loading in environment variables
 load_dotenv()
 
 # configuring our CLI profile name
 boto3.setup_default_session(profile_name=os.getenv('profile_name'))
+
 # increasing the timeout period when invoking bedrock
 config = botocore.config.Config(connect_timeout=120, read_timeout=120)
+
 # instantiating the Polly client
 polly = boto3.client('polly', region_name='us-east-1')
+
 # instantiating the Transcribe client
 transcribe = boto3.client('transcribe', region_name='us-east-1')
+
+# instantiating the S3 client
+s3 = boto3.client('s3')
 
 # Title displayed on the Streamlit web app
 st.title(f""":money_with_wings: **Who Wants to Be an AI Millionaire?** :moneybag:""")
@@ -34,6 +39,7 @@ st.title(f""":money_with_wings: **Who Wants to Be an AI Millionaire?** :moneybag
 if "messages" not in st.session_state:
     st.session_state.messages = []
     open("chat_history.txt", "w").close()
+
 # displaying chat messages stored in session state
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -83,29 +89,46 @@ webrtc_ctx = webrtc_streamer(
     async_processing=True,
 )
 
-async def transcribe_audio_stream(audio_data):
-    # Convert audio data to base64
-    audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+def transcribe_audio(audio_data):
+    # Create a temporary WAV file
+    with io.BytesIO() as wav_file:
+        with wave.open(wav_file, 'wb') as wav:
+            wav.setnchannels(1)  # mono
+            wav.setsampwidth(2)  # 16-bit
+            wav.setframerate(16000)  # 16kHz
+            wav.writeframes(audio_data)
+        wav_file.seek(0)
+        
+        # Upload the WAV file to S3
+        bucket_name = os.getenv('S3_BUCKET_NAME')  # Get S3 bucket name from environment variable
+        file_name = f'temp_audio_{int(time.time())}.wav'
+        s3.upload_fileobj(wav_file, bucket_name, file_name)
 
-    # Prepare the request payload
-    payload = {
-        "AudioStream": {
-            "AudioEvent": {
-                "AudioChunk": audio_base64
-            }
-        }
-    }
+    # Start transcription job
+    job_name = f"transcription_job_{int(time.time())}"
+    transcribe.start_transcription_job(
+        TranscriptionJobName=job_name,
+        Media={'MediaFileUri': f"s3://{bucket_name}/{file_name}"},
+        MediaFormat='wav',
+        LanguageCode='en-US'
+    )
 
-    # Set up the Transcribe streaming endpoint
-    endpoint = f"https://transcribe-streaming.us-east-1.amazonaws.com/stream-transcription-websocket"
+    # Wait for the transcription job to complete
+    while True:
+        status = transcribe.get_transcription_job(TranscriptionJobName=job_name)
+        if status['TranscriptionJob']['TranscriptionJobStatus'] in ['COMPLETED', 'FAILED']:
+            break
+        time.sleep(5)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(endpoint, json=payload) as response:
-            if response.status == 200:
-                result = await response.json()
-                return result.get('Transcript', {}).get('Results', [{}])[0].get('Alternatives', [{}])[0].get('Transcript', '')
-            else:
-                return ''
+    # Clean up the S3 file
+    s3.delete_object(Bucket=bucket_name, Key=file_name)
+
+    if status['TranscriptionJob']['TranscriptionJobStatus'] == 'COMPLETED':
+        result = requests.get(status['TranscriptionJob']['Transcript']['TranscriptFileUri']).json()
+        transcript = result['results']['transcripts'][0]['transcript']
+        return transcript
+    else:
+        return "Transcription failed"
 
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
@@ -113,17 +136,10 @@ with st.sidebar:
     def processing():
         with st.spinner(':telephone_receiver: Calling a friend...'):
             global transcript
-            audio_data = b''.join(audio_buffer.queue)
-            
-            # Use asyncio to run the async function
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            transcript = loop.run_until_complete(transcribe_audio_stream(audio_data))
-            loop.close()
-
-            if not transcript:
+            audio_data = b''.join(list(audio_buffer.queue))
+            transcript = transcribe_audio(audio_data)
+            if not transcript or transcript == "Transcription failed":
                 transcript = "I'm sorry, I couldn't understand the question. Could you please repeat it?"
-
         return "Transcription ended!"
     
     # Check if the lifeline is active
