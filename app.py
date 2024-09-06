@@ -105,10 +105,10 @@ with st.sidebar:
         result_container.button('Ask a New Question', on_click=clear)
 
 # If transcript is available, display it as a question
-if transcript:
-    with st.chat_message("user"):
-        st.markdown(f":question: **Your Question:** {transcript}")
-        st.balloons()
+    if transcript:
+        with st.chat_message("user"):
+            st.markdown(f":question: **Your Question:** {transcript}")
+            st.balloons()
     st.session_state.messages.append({"role": "user", "content": transcript})
 
     # Answer from the AI (the Millionaire Expert)
