@@ -46,13 +46,14 @@ media_stream_constraints = {"audio": True, "video": False}
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
 
-# Function to capture audio from WebRTC and transcribe it
+# Capture audio from WebRTC and transcribe it
 def audio_transcription():
     global transcript
     webrtc_ctx = webrtc_streamer(
         key="transcription",
         mode=WebRtcMode.SENDRECV,
-        client_settings=WEBRTC_CLIENT_SETTINGS,
+        rtc_configuration=rtc_configuration,
+        media_stream_constraints=media_stream_constraints,
         audio_receiver_size=1024,
     )
     
