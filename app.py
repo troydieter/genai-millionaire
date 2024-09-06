@@ -97,7 +97,7 @@ async def transcribe_audio_stream(audio_data):
     }
 
     # Set up the Transcribe streaming endpoint
-    endpoint = f"https://transcribe-streaming.{os.getenv('AWS_REGION')}.amazonaws.com/stream-transcription-websocket"
+    endpoint = f"https://transcribe-streaming.us-east-1.amazonaws.com/stream-transcription-websocket"
 
     async with aiohttp.ClientSession() as session:
         async with session.post(endpoint, json=payload) as response:
