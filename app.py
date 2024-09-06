@@ -9,6 +9,11 @@ from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 import queue
 import threading
+import io
+import asyncio
+import aiohttp
+import json
+import base64
 
 # loading in environment variables
 load_dotenv()
@@ -38,9 +43,19 @@ for message in st.session_state.messages:
 transcript = ""
 response_placeholder = st.empty()
 
-# Function to play audio from Polly response
-def play_audio(audio_data):
-    st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
+# Function to synthesize speech using Polly
+def synthesize_speech(text):
+    response = polly.synthesize_speech(
+        Text=text,
+        OutputFormat='mp3',
+        VoiceId='Joanna',  # You can change the voice as needed
+        Engine='neural'
+    )
+    
+    if "AudioStream" in response:
+        return response["AudioStream"].read()
+    else:
+        return None
 
 # WebRTC configuration
 rtc_configuration = RTCConfiguration(
@@ -68,20 +83,47 @@ webrtc_ctx = webrtc_streamer(
     async_processing=True,
 )
 
+async def transcribe_audio_stream(audio_data):
+    # Convert audio data to base64
+    audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+
+    # Prepare the request payload
+    payload = {
+        "AudioStream": {
+            "AudioEvent": {
+                "AudioChunk": audio_base64
+            }
+        }
+    }
+
+    # Set up the Transcribe streaming endpoint
+    endpoint = f"https://transcribe-streaming.{os.getenv('AWS_REGION')}.amazonaws.com/stream-transcription-websocket"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(endpoint, json=payload) as response:
+            if response.status == 200:
+                result = await response.json()
+                return result.get('Transcript', {}).get('Results', [{}])[0].get('Alternatives', [{}])[0].get('Transcript', '')
+            else:
+                return ''
+
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
     # Start the "Call a Friend" transcription job
     def processing():
         with st.spinner(':telephone_receiver: Calling a friend...'):
             global transcript
-            # Here you would implement the logic to transcribe the audio from WebRTC
-            # For now, we'll just use a placeholder
-            audio_data = []
-            while not audio_buffer.empty():
-                audio_data.append(audio_buffer.get())
-            # Process audio_data to get transcript
-            # This is where you'd integrate with a speech-to-text service
-            transcript = "Who is the president of the united states?"
+            audio_data = b''.join(audio_buffer.queue)
+            
+            # Use asyncio to run the async function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            transcript = loop.run_until_complete(transcribe_audio_stream(audio_data))
+            loop.close()
+
+            if not transcript:
+                transcript = "I'm sorry, I couldn't understand the question. Could you please repeat it?"
+
         return "Transcription ended!"
     
     # Check if the lifeline is active
@@ -133,10 +175,17 @@ if transcript:
     
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
-    # Polly speaks the answer
-    response = polly.synthesize_speech(Text=answer, OutputFormat='mp3', VoiceId='Danielle', Engine="neural")
-    response_audio = response['AudioStream'].read()
-    response_placeholder.audio(response_audio, format='audio/mp3', start_time=0, autoplay=True)
+    # Synthesize speech for the answer using Polly
+    audio_data = synthesize_speech(answer)
+    
+    if audio_data:
+        # Create an in-memory file-like object
+        audio_file = io.BytesIO(audio_data)
+        
+        # Display audio player in Streamlit
+        st.audio(audio_file, format='audio/mp3', start_time=0)
+    else:
+        st.error("Failed to synthesize speech.")
 
     # Append chat history for future references
     chat_history(st.session_state)
