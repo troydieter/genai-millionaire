@@ -6,6 +6,7 @@ from live_transcription import main
 from dotenv import load_dotenv
 import boto3
 import botocore.config
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
 
 # loading in environment variables
 load_dotenv()
@@ -35,19 +36,36 @@ for message in st.session_state.messages:
 transcript = ""
 response_placeholder = st.empty()
 
+# WebRTC settings
+WEBRTC_CLIENT_SETTINGS = ClientSettings(
+    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+    media_stream_constraints={"audio": True, "video": False},
+)
+
 # Function to play audio from Polly response
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
 
+# Function to capture audio from WebRTC and transcribe it
+def audio_transcription():
+    global transcript
+    webrtc_ctx = webrtc_streamer(
+        key="transcription",
+        mode=WebRtcMode.SENDRECV,
+        client_settings=WEBRTC_CLIENT_SETTINGS,
+        audio_receiver_size=1024,
+    )
+    
+    if webrtc_ctx.audio_receiver:
+        audio_frames = webrtc_ctx.audio_receiver.get_frames(timeout=1)
+        if audio_frames:
+            with st.spinner(':studio_microphone: Transcribing audio...'):
+                transcript = main("en-US", audio_frames)
+            return "Transcription ended!"
+    return "No audio input detected."
+
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
-    # Start the "Call a Friend" transcription job
-    def processing():
-        with st.spinner(':telephone_receiver: Calling a friend...'):
-            global transcript
-            transcript = main("en-US")
-        return "Transcription ended!"
-    
     # Check if the lifeline is active
     if 'run' not in st.session_state:
         st.session_state.run = False
@@ -72,7 +90,7 @@ with st.sidebar:
     # Start transcription when the button is clicked
     if st.session_state.run:
         result_area.empty()
-        st.session_state.result = processing()
+        st.session_state.result = audio_transcription()
         st.session_state.run = False
 
     # Show a reset button when transcription ends
