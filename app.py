@@ -6,7 +6,7 @@ from live_transcription import main
 from dotenv import load_dotenv
 import boto3
 import botocore.config
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, ClientSettings
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 
 # loading in environment variables
 load_dotenv()
@@ -51,7 +51,7 @@ def audio_transcription():
     global transcript
     webrtc_ctx = webrtc_streamer(
         key="transcription",
-        mode=WebRtcMode.SENDRECV,  # Ensure the mode is set for audio
+        mode=WebRtcMode.SENDONLY,  # Ensure the mode is set for audio
         rtc_configuration=rtc_configuration,
         media_stream_constraints=media_stream_constraints,
         audio_receiver_size=1024,  # Buffer size for audio reception
