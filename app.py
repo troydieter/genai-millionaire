@@ -105,19 +105,19 @@ with st.sidebar:
         result_container.button('Ask a New Question', on_click=clear)
 
 # If transcript is available, display it as a question
-    if transcript:
-        with st.chat_message("user"):
-            st.markdown(f":question: **Your Question:** {transcript}")
-            st.balloons()
+if transcript:
+    with st.chat_message("user"):
+        st.markdown(f":question: **Your Question:** {transcript}")
+        st.balloons()
     st.session_state.messages.append({"role": "user", "content": transcript})
 
-    # Answer from the AI (the Millionaire Expert)
+# Answer from the AI (the Millionaire Expert)
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         with st.spinner("Thinking..."):
             answer = prompt_finder(transcript)
             message_placeholder.markdown(f":moneybag: **AI Expert's Answer:** {answer}")
-    
+
     st.session_state.messages.append({"role": "assistant", "content": answer})
 
     # Polly speaks the answer
