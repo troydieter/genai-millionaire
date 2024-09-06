@@ -2,10 +2,12 @@ import streamlit as st
 import os
 from prompt_finder_and_invoke_llm import prompt_finder
 from chat_history_prompt_generator import chat_history
-from live_transcription import main
 from dotenv import load_dotenv
 import boto3
 import botocore.config
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import av
+import queue
 
 # loading in environment variables
 load_dotenv()
@@ -39,13 +41,38 @@ response_placeholder = st.empty()
 def play_audio(audio_data):
     st.audio(audio_data, format='audio/mp3', start_time=0, autoplay=True)
 
+# WebRTC configuration
+rtc_configuration = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
+
+# Audio receiver for WebRTC
+class AudioReceiver:
+    def __init__(self):
+        self.audio_buffer = queue.Queue()
+
+    def receive(self, frame):
+        self.audio_buffer.put(frame.to_ndarray())
+
+# WebRTC streamer
+audio_receiver = AudioReceiver()
+webrtc_ctx = webrtc_streamer(
+    key="audio-recorder",
+    mode=WebRtcMode.RECVONLY,
+    rtc_configuration=rtc_configuration,
+    media_stream_constraints={"video": False, "audio": True},
+    audio_receiver=audio_receiver,
+)
+
 # Sidebar controls - Select your lifeline!
 with st.sidebar:
     # Start the "Call a Friend" transcription job
     def processing():
         with st.spinner(':telephone_receiver: Calling a friend...'):
             global transcript
-            transcript = main("en-US")
+            # Here you would implement the logic to transcribe the audio from WebRTC
+            # For now, we'll just use a placeholder
+            transcript = "This is a placeholder for the transcribed audio from WebRTC"
         return "Transcription ended!"
     
     # Check if the lifeline is active
