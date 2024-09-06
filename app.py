@@ -8,6 +8,7 @@ import botocore.config
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import av
 import queue
+import threading
 
 # loading in environment variables
 load_dotenv()
@@ -46,22 +47,25 @@ rtc_configuration = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 )
 
-# Audio receiver for WebRTC
-class AudioReceiver:
-    def __init__(self):
-        self.audio_buffer = queue.Queue()
+# Global variable to store audio data
+audio_buffer = queue.Queue()
 
-    def receive(self, frame):
-        self.audio_buffer.put(frame.to_ndarray())
+def audio_frame_callback(frame):
+    sound = frame.to_ndarray()
+    audio_buffer.put(sound)
 
-# WebRTC streamer
-audio_receiver = AudioReceiver()
+def video_frame_callback(frame):
+    img = frame.to_ndarray(format="bgr24")
+    return av.VideoFrame.from_ndarray(img, format="bgr24")
+
 webrtc_ctx = webrtc_streamer(
     key="audio-recorder",
-    mode=WebRtcMode.RECVONLY,
+    mode=WebRtcMode.SENDRECV,
     rtc_configuration=rtc_configuration,
     media_stream_constraints={"video": False, "audio": True},
-    audio_receiver=audio_receiver,
+    audio_frame_callback=audio_frame_callback,
+    video_frame_callback=video_frame_callback,
+    async_processing=True,
 )
 
 # Sidebar controls - Select your lifeline!
@@ -72,6 +76,11 @@ with st.sidebar:
             global transcript
             # Here you would implement the logic to transcribe the audio from WebRTC
             # For now, we'll just use a placeholder
+            audio_data = []
+            while not audio_buffer.empty():
+                audio_data.append(audio_buffer.get())
+            # Process audio_data to get transcript
+            # This is where you'd integrate with a speech-to-text service
             transcript = "This is a placeholder for the transcribed audio from WebRTC"
         return "Transcription ended!"
     
