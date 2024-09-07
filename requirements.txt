@@ -120,7 +120,7 @@ websockets==11.0.3
 wheel==0.38.4
 yarl==1.9.2
 zipp==3.17.0
-streamlit==1.24.0
+streamlit
 python-dotenv==1.0.0
 aiortc==1.5.0
 websockets==11.0.3
