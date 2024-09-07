@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, AudioProcessorBase
 import numpy as np
 import os
 from prompt_finder_and_invoke_llm import prompt_finder
@@ -86,7 +86,7 @@ with st.sidebar:
 if st.session_state.run:
     webrtc_ctx = webrtc_streamer(
         key="speech",
-        mode="sendonly",
+        mode=WebRtcMode.SENDONLY,  # Use WebRtcMode enum instead of string
         audio_processor_factory=AudioProcessor,
         media_stream_constraints={"audio": True, "video": False},
         async_processing=True,
