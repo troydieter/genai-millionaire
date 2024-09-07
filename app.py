@@ -84,13 +84,24 @@ with st.sidebar:
 
 # Only start WebRTC streaming if the user clicks "Start Conversation"
 if st.session_state.run:
+    # WebRTC with Google STUN server configuration
     webrtc_ctx = webrtc_streamer(
         key="speech",
-        mode=WebRtcMode.SENDONLY,  # Use WebRtcMode enum instead of string
-        audio_processor_factory=AudioProcessor,
-        media_stream_constraints={"audio": True, "video": False},
-        async_processing=True,
+        mode=WebRtcMode.SENDONLY,  # SENDONLY since we're only sending audio from the browser to the server
+        rtc_configuration={
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]}  # Google STUN server
+            ]
+        },
+        media_stream_constraints={
+            "audio": True,  # Only using audio, not video
+            "video": False
+        },
+        audio_processor_factory=AudioProcessor,  # Optional custom audio processing
+        async_processing=True,  # Enable async processing for smoother experience
     )
+
+    
 
 # Evaluate transcript and handle responses
 if st.session_state.transcript:
